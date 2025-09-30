@@ -1,0 +1,285 @@
+-- =============================================
+--        Dandys Hub Universal Fly
+-- =============================================
+
+--// Services
+local Players = game:GetService('Players')
+local UserInputService = game:GetService('UserInputService')
+local RunService = game:GetService('RunService')
+local LocalPlayer = Players.LocalPlayer
+
+-- =============================================
+--                  GUI SETUP
+-- =============================================
+
+--// Main GUI objects
+local screenGui = Instance.new('ScreenGui')
+screenGui.Name = 'DandysHubFlyGui'
+screenGui.Parent = LocalPlayer:WaitForChild('PlayerGui')
+screenGui.ResetOnSpawn = false
+
+local mainFrame = Instance.new('Frame')
+mainFrame.Name = 'MainFrame'
+mainFrame.Parent = screenGui
+mainFrame.Size = UDim2.fromOffset(250, 140)
+mainFrame.Position = UDim2.fromScale(0.5, 0.5)
+mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+mainFrame.BackgroundColor3 = Color3.fromRGB(40, 42, 48)
+mainFrame.BorderColor3 = Color3.fromRGB(20, 21, 24)
+mainFrame.BorderSizePixel = 2
+
+local corner = Instance.new('UICorner', mainFrame)
+corner.CornerRadius = UDim.new(0, 8)
+
+--// Title bar (for dragging and title text)
+local titleBar = Instance.new('TextLabel')
+titleBar.Name = 'TitleBar'
+titleBar.Parent = mainFrame
+titleBar.Size = UDim2.new(1, 0, 0, 35)
+titleBar.BackgroundColor3 = Color3.fromRGB(30, 31, 36)
+titleBar.Text = 'Dandys Hub Universal Fly'
+titleBar.Font = Enum.Font.GothamBold
+titleBar.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleBar.TextSize = 16
+
+local titleCorner = Instance.new('UICorner', titleBar)
+titleCorner.CornerRadius = UDim.new(0, 8)
+
+--// Fly toggle button
+local flyButton = Instance.new('TextButton')
+flyButton.Name = 'FlyButton'
+flyButton.Parent = mainFrame
+flyButton.Position = UDim2.new(0.05, 0, 0, 45)
+flyButton.Size = UDim2.new(0.9, 0, 0, 35)
+flyButton.BackgroundColor3 = Color3.fromRGB(190, 45, 45) -- Red for "Disabled"
+flyButton.Text = 'Enable Fly'
+flyButton.Font = Enum.Font.GothamBold
+flyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+flyButton.TextSize = 16
+
+local flyButtonCorner = Instance.new('UICorner', flyButton)
+flyButtonCorner.CornerRadius = UDim.new(0, 6)
+
+--// Speed slider elements
+local speedLabel = Instance.new('TextLabel')
+speedLabel.Name = 'SpeedLabel'
+speedLabel.Parent = mainFrame
+speedLabel.Position = UDim2.new(0.05, 0, 0, 90)
+speedLabel.Size = UDim2.new(0.4, 0, 0, 30)
+speedLabel.BackgroundColor3 = Color3.fromRGB(55, 58, 64)
+speedLabel.Text = 'Speed: 50'
+speedLabel.Font = Enum.Font.Gotham
+speedLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+speedLabel.TextSize = 14
+
+local speedLabelCorner = Instance.new('UICorner', speedLabel)
+speedLabelCorner.CornerRadius = UDim.new(0, 6)
+
+local sliderTrack = Instance.new('Frame')
+sliderTrack.Name = 'SliderTrack'
+sliderTrack.Parent = mainFrame
+sliderTrack.Position = UDim2.new(0.48, 0, 0, 90)
+sliderTrack.Size = UDim2.new(0.47, 0, 0, 30)
+sliderTrack.BackgroundColor3 = Color3.fromRGB(30, 31, 36)
+
+local trackCorner = Instance.new('UICorner', sliderTrack)
+trackCorner.CornerRadius = UDim.new(0, 6)
+
+local sliderThumb = Instance.new('TextButton')
+sliderThumb.Name = 'SliderThumb'
+sliderThumb.Parent = sliderTrack
+sliderThumb.Position = UDim2.fromScale(0.2, 0) -- Start at 50 speed (20% along the track)
+sliderThumb.Size = UDim2.fromOffset(15, 30)
+sliderThumb.BackgroundColor3 = Color3.fromRGB(80, 85, 94)
+sliderThumb.Text = ''
+sliderThumb.BorderSizePixel = 0
+
+local thumbCorner = Instance.new('UICorner', sliderThumb)
+thumbCorner.CornerRadius = UDim.new(0, 4)
+
+-- =============================================
+--              CORE SCRIPT LOGIC
+-- =============================================
+
+--// State variables
+local isFlying = false
+local flySpeed = 50
+local MIN_SPEED, MAX_SPEED = 10, 200
+
+--// Fly physics objects
+local flyVelocity = nil
+local flyAttachment = nil
+
+--// Function to enable flight
+local function enableFly()
+    local character = LocalPlayer.Character
+    if not character or not character:FindFirstChild('HumanoidRootPart') then
+        return
+    end
+    local humanoid = character:FindFirstChildOfClass('Humanoid')
+    local rootPart = character.HumanoidRootPart
+    if not humanoid then
+        return
+    end
+
+    if not flyAttachment then
+        flyAttachment = Instance.new('Attachment', rootPart)
+    end
+    if not flyVelocity then
+        flyVelocity = Instance.new('LinearVelocity', rootPart)
+        flyVelocity.Attachment0 = flyAttachment
+        flyVelocity.MaxForce = math.huge
+    end
+
+    flyVelocity.Enabled = true
+    humanoid.PlatformStand = true
+    isFlying = true
+
+    flyButton.BackgroundColor3 = Color3.fromRGB(45, 190, 45) -- Green
+    flyButton.Text = 'Disable Fly'
+end
+
+--// Function to disable flight
+local function disableFly()
+    local character = LocalPlayer.Character
+    if character then
+        local humanoid = character:FindFirstChildOfClass('Humanoid')
+        if humanoid then
+            humanoid.PlatformStand = false
+        end
+    end
+
+    if flyVelocity then
+        flyVelocity.Enabled = false
+    end
+    isFlying = false
+
+    flyButton.BackgroundColor3 = Color3.fromRGB(190, 45, 45) -- Red
+    flyButton.Text = 'Enable Fly'
+end
+
+--// GUI Interactions
+-- Make the GUI draggable
+local dragging, dragStart, startPos
+titleBar.InputBegan:Connect(function(i)
+    if
+        i.UserInputType == Enum.UserInputType.MouseButton1
+        or i.UserInputType == Enum.UserInputType.Touch
+    then
+        dragging, dragStart, startPos = true, i.Position, mainFrame.Position
+    end
+end)
+titleBar.InputEnded:Connect(function(i)
+    if
+        i.UserInputType == Enum.UserInputType.MouseButton1
+        or i.UserInputType == Enum.UserInputType.Touch
+    then
+        dragging = false
+    end
+end)
+UserInputService.InputChanged:Connect(function(i)
+    if
+        dragging
+        and (
+            i.UserInputType == Enum.UserInputType.MouseMovement
+            or i.UserInputType == Enum.UserInputType.Touch
+        )
+    then
+        local d = i.Position - dragStart
+        mainFrame.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + d.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + d.Y
+        )
+    end
+end)
+
+-- Fly button toggle
+flyButton.MouseButton1Click:Connect(function()
+    if isFlying then
+        disableFly()
+    else
+        enableFly()
+    end
+end)
+
+-- Slider logic
+local function updateSpeedFromThumb()
+    local thumbPos = sliderThumb.Position.X.Scale
+    flySpeed = MIN_SPEED + (thumbPos * (MAX_SPEED - MIN_SPEED))
+    speedLabel.Text = 'Speed: ' .. math.floor(flySpeed)
+end
+
+sliderThumb.InputBegan:Connect(function()
+    local inputConnection
+    inputConnection = UserInputService.InputChanged:Connect(function(input)
+        if
+            input.UserInputType == Enum.UserInputType.MouseMovement
+            or input.UserInputType == Enum.UserInputType.Touch
+        then
+            local mouseX = UserInputService:GetMouseLocation().X
+            local trackStartX = sliderTrack.AbsolutePosition.X
+            local trackWidth = sliderTrack.AbsoluteSize.X
+
+            local newThumbX = (mouseX - trackStartX) / trackWidth
+            sliderThumb.Position =
+                UDim2.fromScale(math.clamp(newThumbX, 0, 1), 0)
+            updateSpeedFromThumb()
+        end
+    end)
+
+    local releaseConnection
+    releaseConnection = UserInputService.InputEnded:Connect(function(input)
+        if
+            input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch
+        then
+            inputConnection:Disconnect()
+            releaseConnection:Disconnect()
+        end
+    end)
+end)
+
+--// Main flight loop
+RunService.Heartbeat:Connect(function()
+    if isFlying and flyVelocity and flyVelocity.Parent then
+        local character = LocalPlayer.Character
+        if not character then
+            disableFly()
+            return
+        end
+
+        local moveVector = Vector3.new()
+        local camera = workspace.CurrentCamera
+
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+            moveVector = moveVector + camera.CFrame.LookVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            moveVector = moveVector - camera.CFrame.LookVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+            moveVector = moveVector - camera.CFrame.RightVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+            moveVector = moveVector + camera.CFrame.RightVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            moveVector = moveVector + Vector3.new(0, 1, 0)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+            moveVector = moveVector - Vector3.new(0, 1, 0)
+        end
+
+        flyVelocity.VectorVelocity = moveVector.Magnitude > 0
+                and moveVector.Unit * flySpeed
+            or Vector3.new(0, 0, 0)
+    end
+end)
+
+--// Handle character respawns
+LocalPlayer.CharacterAdded:Connect(function()
+    -- Ensure flight is disabled when the player respawns to avoid issues
+    disableFly()
+end)
